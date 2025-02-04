@@ -1,2 +1,2 @@
-# encoder-decoder
-Implementation of LSTM Encoder-Decoder model
+# Purpose
+Implementation LSTM Encoder-Decoder model of [paper](https://arxiv.org/abs/1409.3215).
