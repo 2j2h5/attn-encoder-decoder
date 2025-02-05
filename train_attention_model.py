@@ -7,7 +7,7 @@ import nltk
 from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 
 from data import *
-from model import Encoder, Decoder
+from attention_model import Encoder, Decoder
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 max_length = 80
