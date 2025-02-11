@@ -137,8 +137,8 @@ if __name__ == "__main__":
     input_tensor = tensorFromSentence(sample_pair[0], src_W2I, device=device)
     output_words = evaluate(input_tensor)
     print(f"Input(en): {sample_pair[0]}")
-    print("Output(fr):", " ".join(output_words))
-    print(f"Target(fr): {sample_pair[1]}")
+    print("Output(de):", " ".join(output_words))
+    print(f"Target(de): {sample_pair[1]}")
 
     x = torch.arange(num_iters)
     plt.figure(figsize=(10, 6))
