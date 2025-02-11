@@ -9,44 +9,50 @@ from data import *
 from model import Encoder, Decoder
 from util import *
 
-with open("dataset.pkl", "rb") as f:
+pkl_file = "multi30k-en-de.pkl"
+src_lang = "en"
+tgt_lang = "de"
+
+with open(pkl_file, "rb") as f:
     loaded_data = pickle.load(f)
 
 train_pairs = loaded_data["train_pairs"]
 valid_pairs = loaded_data["valid_pairs"]
 test_pairs = loaded_data["test_pairs"]
-en_W2I = loaded_data["en_W2I"]
-en_I2W = loaded_data["en_I2W"]
-en_W2C = loaded_data["en_W2C"]
-en_WrdCnt = loaded_data["en_WrdCnt"]
-fr_W2I = loaded_data["fr_W2I"]
-fr_I2W = loaded_data["fr_I2W"]
-fr_W2C = loaded_data["fr_W2C"]
-fr_WrdCnt = loaded_data["fr_WrdCnt"]
+src_W2I = loaded_data[f"{src_lang}_W2I"]
+src_I2W = loaded_data[f"{src_lang}_I2W"]
+src_W2C = loaded_data[f"{src_lang}_W2C"]
+src_WrdCnt = loaded_data[f"{src_lang}_WrdCnt"]
+tgt_W2I = loaded_data[f"{tgt_lang}_W2I"]
+tgt_I2W = loaded_data[f"{tgt_lang}_I2W"]
+tgt_W2C = loaded_data[f"{tgt_lang}_W2C"]
+tgt_WrdCnt = loaded_data[f"{tgt_lang}_WrdCnt"]
+
+print(src_WrdCnt, tgt_WrdCnt)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 max_target_length = 30
-hidden_size = 256
+hidden_size = 128
 num_layers = 4
 learning_rate = 0.001
 teacher_forcing_ratio = 0.5
-num_iters = 10000
-print_every = 100
+num_iters = 1000
+print_every = 10
 
-SOS_token = fr_W2I["<SOS>"]
-EOS_token = fr_W2I["<EOS>"]
-UNK_token = fr_W2I["<UNK>"]
+SOS_token = tgt_W2I["<SOS>"]
+EOS_token = tgt_W2I["<EOS>"]
+UNK_token = tgt_W2I["<UNK>"]
 
 loss_list = []
 
-encoder = Encoder(en_WrdCnt, hidden_size, num_layers=num_layers, device=device).to(device)
-decoder = Decoder(hidden_size, fr_WrdCnt, num_layers=num_layers, device=device).to(device)
+encoder = Encoder(src_WrdCnt, hidden_size, num_layers=num_layers, device=device).to(device)
+decoder = Decoder(hidden_size, tgt_WrdCnt, num_layers=num_layers, device=device).to(device)
 
 encoder_optimizer = optim.Adam(encoder.parameters(), lr=learning_rate)
 decoder_optimizer = optim.Adam(decoder.parameters(), lr=learning_rate)
 criterion = nn.NLLLoss() 
 
-def train(input_tensor, target_tensor):
+def train(input_tensor, target_tensor, use_teacher_forcing_flag=True):
     h, c = encoder.initHidden()
     encoder_hidden = (h, c)
 
@@ -63,7 +69,7 @@ def train(input_tensor, target_tensor):
     decoder_input = torch.tensor([[SOS_token]], device=device)
     decoder_hidden = encoder_hidden
 
-    use_teacher_forcing = True if random.random() < teacher_forcing_ratio else False
+    use_teacher_forcing = True if random.random() < teacher_forcing_ratio and use_teacher_forcing_flag else False
 
     if use_teacher_forcing:
         for di in range(target_length):
@@ -108,7 +114,7 @@ def evaluate(input_tensor):
                 decoded_words.append("<EOS>")
                 break
             else:
-                decoded_words.append(fr_I2W[token])
+                decoded_words.append(tgt_I2W[token])
 
             decoder_input = topi.squeeze().detach()
 
@@ -118,10 +124,10 @@ if __name__ == "__main__":
     print("Training...")
     for iter in range(num_iters):
         pair = random.choice(train_pairs)
-        input_tensor = tensorFromSentence(pair[0], en_W2I, device=device)
-        target_tensor = tensorFromSentence(pair[1], fr_W2I, device=device)
+        input_tensor = tensorFromSentence(pair[0], src_W2I, device=device)
+        target_tensor = tensorFromSentence(pair[1], tgt_W2I, device=device)
 
-        loss = train(input_tensor, target_tensor)
+        loss = train(input_tensor, target_tensor, use_teacher_forcing_flag=True)
         loss_list.append(loss)
 
         if iter % print_every == 0:
@@ -134,7 +140,7 @@ if __name__ == "__main__":
     decoder.load_state_dict(torch.load("decoder_state_dict.pkl"))
 
     sample_pair = random.choice(valid_pairs)
-    input_tensor = tensorFromSentence(sample_pair[0], en_W2I, device=device)
+    input_tensor = tensorFromSentence(sample_pair[0], src_W2I, device=device)
     output_words = evaluate(input_tensor)
     print(f"Input(en): {sample_pair[0]}")
     print("Output(fr):", " ".join(output_words))

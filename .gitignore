@@ -1,5 +1,7 @@
 # Pickles
 dataset.pkl
+wmt14-en-fr.pkl
+multi30k-en-de.pkl
 encoder_state_dict.pkl
 decoder_state_dict.pkl
 
