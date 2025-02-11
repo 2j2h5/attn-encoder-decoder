@@ -1,6 +1,5 @@
 import re
 import pickle
-import random
 from datasets import load_dataset
 
 def load_data(percent=0.1):
@@ -37,8 +36,8 @@ def get_sentence_pairs(src_sentences, tgt_sentences):
     return pairs
 
 def vectorize(dataset):
-    word2index = {"SOS": 0, "EOS": 1, "UNK": 2}
-    index2word = {0: "SOS", 1: "EOS", 2: "UNK"}
+    word2index = {"<SOS>": 0, "<EOS>": 1, "<UNK>": 2}
+    index2word = {0: "<SOS>", 1: "<EOS>", 2: "<UNK>"}
     word2count = {}
     cnt = 3
 
@@ -59,9 +58,9 @@ if __name__ == "__main__":
     train_dataset, valid_dataset, test_dataset = load_data(percent=0.01)
 
     print("Extracting sentences...")
-    train_src, train_tgt = get_sentences(train_dataset, 'fr', 'en')
-    valid_src, valid_tgt = get_sentences(valid_dataset, 'fr', 'en')
-    test_src, test_tgt = get_sentences(test_dataset, 'fr', 'en')
+    train_src, train_tgt = get_sentences(train_dataset, 'en', 'fr')
+    valid_src, valid_tgt = get_sentences(valid_dataset, 'en', 'fr')
+    test_src, test_tgt = get_sentences(test_dataset, 'en', 'fr')
 
     print("Reversing input sentences...")
     train_pairs = get_sentence_pairs(train_src, train_tgt)
@@ -69,8 +68,8 @@ if __name__ == "__main__":
     test_pairs = get_sentence_pairs(test_src, test_tgt)
 
     print("Vectorizing...")
-    fr_W2I, fr_I2W, fr_W2C, fr_WrdCnt = vectorize(train_src + valid_src + test_src)
-    en_W2I, en_I2W, en_W2C, en_WrdCnt = vectorize(train_tgt + valid_tgt + test_tgt)
+    en_W2I, en_I2W, en_W2C, en_WrdCnt = vectorize(train_src + valid_src + test_src)
+    fr_W2I, fr_I2W, fr_W2C, fr_WrdCnt = vectorize(train_tgt + valid_tgt + test_tgt)
 
     data_to_save = {
         "train_pairs": train_pairs,

@@ -1,5 +1,7 @@
-# Datasets
+# Pickles
 dataset.pkl
+encoder_state_dict.pkl
+decoder_state_dict.pkl
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

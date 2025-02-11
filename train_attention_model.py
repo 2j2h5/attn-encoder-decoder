@@ -1,4 +1,5 @@
 import random
+import pickle
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -54,22 +55,22 @@ def tensorsFromPair(pair):
     return (input_tensor, target_tensor)
 
 def train_step(input_tensor, target_tensor, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion, max_length=max_length):
-    h, c = encoder.initHidden()
-    encoder_hidden = (h, c)
+    encoder_hidden = encoder.initHidden()
 
     encoder_optimizer.zero_grad()
     decoder_optimizer.zero_grad()
-
     loss = 0
 
     for ei in range(input_tensor.size(0)):
         _, encoder_hidden = encoder(input_tensor[ei], encoder_hidden)
 
-    decoder_input = torch.tensor([[SOS_token]], device=device)
+    encoder_outputs = torch.cat(encoder.outputs, dim=0)
+
+    decoder_input = torch.tensor([[SOS_token]], device=encoder.device)
     decoder_hidden = encoder_hidden
 
     for di in range(target_tensor.size(0)):
-        decoder_output, decoder_hidden = decoder(decoder_input, decoder_hidden)
+        decoder_output, decoder_hidden = decoder(decoder_input, decoder_hidden, encoder_outputs)
         loss += criterion(decoder_output, target_tensor[di])
         decoder_input = target_tensor[di]
 
@@ -96,7 +97,7 @@ def train(encoder, decoder, n_iters, learning_rate=0.01):
 
 def evaluate(encoder, decoder, sentence, max_length=max_length):
     with torch.no_grad():
-        input_tensor = tensorFromSentence(sentence, en_W2I)
+        input_tensor = tensorFromSentence(sentence, fr_W2I)
         h, c = encoder.initHidden()
         encoder_hidden = (h, c)
 
@@ -115,7 +116,7 @@ def evaluate(encoder, decoder, sentence, max_length=max_length):
             if word_index == EOS_token:
                 break
             else:
-                decoded_words.append(fr_I2W[word_index])
+                decoded_words.append(en_I2W[word_index])
 
             decoder_input = topi.squeeze().detach()
 
