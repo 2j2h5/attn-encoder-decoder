@@ -31,10 +31,10 @@ tgt_WrdCnt = loaded_data[f"{tgt_lang}_WrdCnt"]
 print(src_WrdCnt, tgt_WrdCnt)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-max_target_length = 30
-hidden_size = 128
-num_layers = 4
-learning_rate = 0.001
+max_target_length = 50
+hidden_size = 256
+num_layers = 1
+learning_rate = 0.0001
 teacher_forcing_ratio = 0.5
 num_iters = 1000
 print_every = 10
@@ -127,17 +127,11 @@ if __name__ == "__main__":
         input_tensor = tensorFromSentence(pair[0], src_W2I, device=device)
         target_tensor = tensorFromSentence(pair[1], tgt_W2I, device=device)
 
-        loss = train(input_tensor, target_tensor, use_teacher_forcing_flag=True)
+        loss = train(input_tensor, target_tensor, use_teacher_forcing_flag=True)    
         loss_list.append(loss)
 
         if iter % print_every == 0:
             print(f"Iteration {iter}, Loss: {loss:.4f}")
-
-    torch.save(encoder.state_dict(), "encoder_state_dict.pkl")
-    torch.save(decoder.state_dict(), "decoder_state_dict.pkl")
-
-    encoder.load_state_dict(torch.load("encoder_state_dict.pkl"))
-    decoder.load_state_dict(torch.load("decoder_state_dict.pkl"))
 
     sample_pair = random.choice(valid_pairs)
     input_tensor = tensorFromSentence(sample_pair[0], src_W2I, device=device)

@@ -4,158 +4,152 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import matplotlib.pyplot as plt
-import nltk
-from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 
 from data import *
-from attention_model import Encoder, Decoder
+from attention_model import Encoder, AttnDecoder
+from util import *
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-max_length = 80
-SOS_token = 0
-EOS_token = 1
-UNK_token = 2
-n_iters = 1000
-num_layers = 4
+pkl_file = "multi30k-en-de.pkl"
+src_lang = "en"
+tgt_lang = "de"
 
-loss_list = []
-
-with open("dataset.pkl", "rb") as f:
+with open(pkl_file, "rb") as f:
     loaded_data = pickle.load(f)
 
 train_pairs = loaded_data["train_pairs"]
 valid_pairs = loaded_data["valid_pairs"]
 test_pairs = loaded_data["test_pairs"]
-fr_W2I = loaded_data["fr_W2I"]
-fr_I2W = loaded_data["fr_I2W"]
-fr_W2C = loaded_data["fr_W2C"]
-fr_WrdCnt = loaded_data["fr_WrdCnt"]
-en_W2I = loaded_data["en_W2I"]
-en_I2W = loaded_data["en_I2W"]
-en_W2C = loaded_data["en_W2C"]
-en_WrdCnt = loaded_data["en_WrdCnt"]
+src_W2I = loaded_data[f"{src_lang}_W2I"]
+src_I2W = loaded_data[f"{src_lang}_I2W"]
+src_W2C = loaded_data[f"{src_lang}_W2C"]
+src_WrdCnt = loaded_data[f"{src_lang}_WrdCnt"]
+tgt_W2I = loaded_data[f"{tgt_lang}_W2I"]
+tgt_I2W = loaded_data[f"{tgt_lang}_I2W"]
+tgt_W2C = loaded_data[f"{tgt_lang}_W2C"]
+tgt_WrdCnt = loaded_data[f"{tgt_lang}_WrdCnt"]
 
-def indexesFromSentence(sentence,word2index):
-    indice = []
-    for word in sentence.split():
-        if word in word2index:
-            indice.append(word2index[word])
-        else:
-            indice.append(word2index["UNK"])
-    return indice
+print(src_WrdCnt, tgt_WrdCnt)
 
-def tensorFromSentence(sentence,word2index):
-    indexes = indexesFromSentence(sentence,word2index)
-    indexes.append(EOS_token)
-    return torch.tensor(indexes, dtype=torch.long, device=device).view(-1, 1)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+max_length = 40
+hidden_size = 256
+num_layers = 1
+learning_rate = 0.0001
+teacher_forcing_ratio = 0.5
+num_iters = 1000
+print_every = 10
 
-def tensorsFromPair(pair):
-    input_tensor = tensorFromSentence(pair[0],en_W2I)
-    target_tensor = tensorFromSentence(pair[1],fr_W2I)
-    return (input_tensor, target_tensor)
+SOS_token = tgt_W2I["<SOS>"]
+EOS_token = tgt_W2I["<EOS>"]
+UNK_token = tgt_W2I["<UNK>"]
 
-def train_step(input_tensor, target_tensor, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion, max_length=max_length):
-    encoder_hidden = encoder.initHidden()
+loss_list = []
+
+encoder = Encoder(src_WrdCnt, hidden_size, num_layers=num_layers, device=device).to(device)
+attn_decoder = AttnDecoder(hidden_size, tgt_WrdCnt, num_layers=num_layers, device=device, max_length=max_length).to(device)
+
+encoder_optimizer = optim.Adam(encoder.parameters(), lr=learning_rate)
+decoder_optimizer = optim.Adam(attn_decoder.parameters(), lr=learning_rate)
+criterion = nn.NLLLoss() 
+
+def train(input_tensor, target_tensor, use_teacher_forcing_flag=True):
+    h, c = encoder.initHidden()
+    encoder_hidden = (h, c)
 
     encoder_optimizer.zero_grad()
     decoder_optimizer.zero_grad()
-    loss = 0
 
-    for ei in range(input_tensor.size(0)):
-        _, encoder_hidden = encoder(input_tensor[ei], encoder_hidden)
+    input_length = input_tensor.size(0)
+    target_length = target_tensor.size(0)
 
-    encoder_outputs = torch.cat(encoder.outputs, dim=0)
+    encoder_outputs, encoder_hidden = encoder(input_tensor, encoder_hidden)
+    if input_length < max_length:
+        padding = torch.zeros(max_length - input_length, 1, encoder.hidden_size, device=device)
+        encoder_outputs = torch.cat((encoder_outputs, padding), dim=0)
 
-    decoder_input = torch.tensor([[SOS_token]], device=encoder.device)
+    decoder_input = torch.tensor([[SOS_token]], device=device)
     decoder_hidden = encoder_hidden
 
-    for di in range(target_tensor.size(0)):
-        decoder_output, decoder_hidden = decoder(decoder_input, decoder_hidden, encoder_outputs)
-        loss += criterion(decoder_output, target_tensor[di])
-        decoder_input = target_tensor[di]
+    loss = 0
+
+    use_teacher_forcing = True if random.random() < teacher_forcing_ratio and use_teacher_forcing_flag else False
+
+    if use_teacher_forcing:
+        for di in range(target_length):
+            decoder_output, decoder_hidden, attn_weights = attn_decoder(decoder_input, decoder_hidden, encoder_outputs)
+            loss += criterion(decoder_output, target_tensor[di])
+            decoder_input = target_tensor[di].unsqueeze(0)
+    else:
+        for di in range(target_length):
+            decoder_output, decoder_hidden, attn_weights = attn_decoder(decoder_input, decoder_hidden, encoder_outputs)
+            topv, topi = decoder_output.topk(1)
+            decoder_input = topi.detach().view(1, -1)
+            loss += criterion(decoder_output, target_tensor[di])
+            if decoder_input.item() == EOS_token:
+                break
 
     loss.backward()
+    
     encoder_optimizer.step()
     decoder_optimizer.step()
 
-    return loss.item() / target_tensor.size(0)
+    return loss.item() / target_length
 
-def train(encoder, decoder, n_iters, learning_rate=0.01):
-    encoder_optimizer = optim.SGD(encoder.parameters(), lr=learning_rate)
-    decoder_optimizer = optim.SGD(decoder.parameters(), lr=learning_rate)
-    criterion = nn.NLLLoss() 
-
-    for iter in range(n_iters):
-        pair = random.choice(train_pairs)
-        input_tensor = tensorFromSentence(pair[0], fr_W2I)
-        target_tensor = tensorFromSentence(pair[1], en_W2I)
-
-        loss = train_step(input_tensor, target_tensor, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion)
-        loss_list.append(loss)
-
-        print(f"Iteration {iter}, Loss: {loss:.4f}")
-
-def evaluate(encoder, decoder, sentence, max_length=max_length):
+def evaluate(input_tensor):
     with torch.no_grad():
-        input_tensor = tensorFromSentence(sentence, fr_W2I)
         h, c = encoder.initHidden()
         encoder_hidden = (h, c)
+        input_length = input_tensor.size(0)
 
-        for ei in range(input_tensor.size(0)):
-            _, encoder_hidden = encoder(input_tensor[ei], encoder_hidden)
+        encoder_outputs, encoder_hidden = encoder(input_tensor, encoder_hidden)
+        if input_length < max_length:
+            padding = torch.zeros(max_length - input_length, 1, encoder.hidden_size, device=device)
+            encoder_outputs = torch.cat((encoder_outputs, padding), dim=0)
 
         decoder_input = torch.tensor([[SOS_token]], device=device)
         decoder_hidden = encoder_hidden
 
         decoded_words = []
-        for _ in range(max_length):
-            decoder_output, decoder_hidden = decoder(decoder_input, decoder_hidden)
+        for di in range(max_length):
+            decoder_output, decoder_hidden, attn_weights = attn_decoder(decoder_input, decoder_hidden, encoder_outputs)
             topv, topi = decoder_output.topk(1)
-            word_index = topi.item()
+            token = topi.item()
 
-            if word_index == EOS_token:
+            if token == EOS_token:
+                decoded_words.append("<EOS>")
                 break
             else:
-                decoded_words.append(en_I2W[word_index])
+                decoded_words.append(tgt_I2W[token])
 
-            decoder_input = topi.squeeze().detach()
+            decoder_input = topi.detach().view(1, -1)
 
         return decoded_words
-    
-def calculate_bleu(encoder, decoder, test_pairs, num_samples=10):
-    smoothing_function = SmoothingFunction().method1
-    bleu_scores = []
 
-    for i in range(num_samples):
-        pair = random.choice(test_pairs)
-        reference = [pair[1].split()]
-        candidate = evaluate(encoder, decoder, pair[0])
+if __name__ == "__main__":
+    print("Training...")
+    for iter in range(num_iters):
+        pair = random.choice(train_pairs)
+        input_tensor = tensorFromSentence(pair[0], src_W2I, device=device)
+        target_tensor = tensorFromSentence(pair[1], tgt_W2I, device=device)
 
-        score = sentence_bleu(reference, candidate, smoothing_function=smoothing_function)
-        bleu_scores.append(score)
+        loss = train(input_tensor, target_tensor, use_teacher_forcing_flag=True)    
+        loss_list.append(loss)
 
-    avg_bleu = sum(bleu_scores) / len(bleu_scores)
-    print(f"Average BLEU Score: {avg_bleu:.4f}")
-    return avg_bleu
+        if iter % print_every == 0:
+            print(f"Iteration {iter}, Loss: {loss:.4f}")
 
-hidden_size = 256
-print(fr_WrdCnt, en_WrdCnt)
-encoder = Encoder(fr_WrdCnt, hidden_size, num_layers=num_layers, device=device).to(device)
-decoder = Decoder(hidden_size, en_WrdCnt, num_layers=num_layers, device=device).to(device)
+    sample_pair = random.choice(valid_pairs)
+    input_tensor = tensorFromSentence(sample_pair[0], src_W2I, device=device)
+    output_words = evaluate(input_tensor)
+    print(f"Input(en): {sample_pair[0]}")
+    print("Output(fr):", " ".join(output_words))
+    print(f"Target(fr): {sample_pair[1]}")
 
-train(encoder, decoder, n_iters=n_iters)
-
-#bleu_score = calculate_bleu(encoder, decoder, test_pairs, num_samples=10)
-
-x = torch.arange(n_iters)
-plt.figure(figsize=(10, 6))
-
-plt.plot(x, loss_list, label='Loss', linestyle='-', color='blue')
-
-plt.xlabel("Iters")
-plt.ylabel("Loss")
-plt.title("Loss Curves")
-
-plt.grid(True)
-
-plt.show()
+    x = torch.arange(num_iters)
+    plt.figure(figsize=(10, 6))
+    plt.plot(x, loss_list, label='Loss', linestyle='-', color='blue')
+    plt.xlabel("Iters")
+    plt.ylabel("Loss")
+    plt.title("Loss Curves")
+    plt.grid(True)
+    plt.show()
