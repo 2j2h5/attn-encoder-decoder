@@ -33,10 +33,10 @@ print(src_WrdCnt, tgt_WrdCnt)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 max_length = 40
 hidden_size = 256
-num_layers = 1
-learning_rate = 0.0001
+num_layers = 4
+learning_rate = 0.001
 teacher_forcing_ratio = 0.5
-num_iters = 1000
+num_iters = 300
 print_every = 10
 
 SOS_token = tgt_W2I["<SOS>"]
@@ -142,8 +142,8 @@ if __name__ == "__main__":
     input_tensor = tensorFromSentence(sample_pair[0], src_W2I, device=device)
     output_words = evaluate(input_tensor)
     print(f"Input(en): {sample_pair[0]}")
-    print("Output(fr):", " ".join(output_words))
-    print(f"Target(fr): {sample_pair[1]}")
+    print("Output(de):", " ".join(output_words))
+    print(f"Target(de): {sample_pair[1]}")
 
     x = torch.arange(num_iters)
     plt.figure(figsize=(10, 6))

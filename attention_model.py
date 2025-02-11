@@ -34,9 +34,13 @@ class AttnDecoder(nn.Module):
         self.max_length = max_length
 
         self.embedding = nn.Embedding(output_size, hidden_size)
-        self.attn = nn.Linear(hidden_size * 2, max_length)
-        self.attn_combine = nn.Linear(hidden_size * 2, hidden_size)
         self.dropout = nn.Dropout(self.dropout_p)
+
+        self.attn_encoder = nn.Linear(hidden_size, hidden_size)
+        self.attn_decoder = nn.Linear(hidden_size, hidden_size)
+        self.attn_v = nn.Linear(hidden_size, 1)
+        self.attn_combine = nn.Linear(hidden_size * 2, hidden_size)
+
         self.lstm = nn.LSTM(hidden_size, hidden_size, num_layers=num_layers)
         self.out = nn.Linear(hidden_size, output_size)
 
@@ -44,18 +48,24 @@ class AttnDecoder(nn.Module):
         embedded = self.embedding(x)
         embedded = self.dropout(embedded)
 
-        h_dec = hidden[0][-1].unsqueeze(0)
-        attn_input = torch.cat((embedded[0], h_dec[0]), 1)
-        attn_weights = F.softmax(self.attn(attn_input), dim=1)
+        decoder_hidden = hidden[0][-1]
+        decoder_hidden = decoder_hidden.unsqueeze(1)
 
         encoder_outputs = encoder_outputs.transpose(0, 1)
-        attn_applied = torch.bmm(attn_weights.unsqueeze(0), encoder_outputs)
 
-        output = torch.cat((embedded[0], attn_applied[0]), 1)
-        output = self.attn_combine(output).unsqueeze(0)
+        energy = torch.tanh(self.attn_encoder(encoder_outputs) + self.attn_decoder(decoder_hidden))
+        attn_scores = self.attn_v(energy).squeeze(2)
+        attn_weights = F.softmax(attn_scores, dim=1)
+
+        context = torch.bmm(attn_weights.unsqueeze(1), encoder_outputs)
+        context = context.transpose(0, 1)
+
+        output = torch.cat((embedded, context), dim=2)
+        output = self.attn_combine(output)
         output = F.relu(output)
 
         output, hidden = self.lstm(output, hidden)
-        output = F.log_softmax(self.out(output[0]), dim=1)
+        output = self.out(output.squeeze(0))
+        output = F.log_softmax(output, dim=1)
 
         return output, hidden, attn_weights
