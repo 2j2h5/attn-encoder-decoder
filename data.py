@@ -24,7 +24,7 @@ def load_data(dataset, percent=0.01):
 
 def clean_text(text):
     text = re.sub(r'(\d+)', '', text)
-    text = re.sub(r'[,.!?;:()\"\']‘’“”', '', text)
+    text = re.sub(r'[,.!?;:()\"\'‘’“”]', '', text)
     text = text.lower().strip()
 
     return text
