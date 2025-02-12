@@ -44,7 +44,7 @@ class AttnDecoder(nn.Module):
         self.lstm = nn.LSTM(hidden_size, hidden_size, num_layers=num_layers)
         self.out = nn.Linear(hidden_size, output_size)
 
-    def forward(self, x, hidden, encoder_outputs):
+    def forward(self, x, hidden, encoder_outputs, encoder_mask=None):
         embedded = self.embedding(x)
         embedded = self.dropout(embedded)
 
@@ -55,6 +55,10 @@ class AttnDecoder(nn.Module):
 
         energy = torch.tanh(self.attn_encoder(encoder_outputs) + self.attn_decoder(decoder_hidden))
         attn_scores = self.attn_v(energy).squeeze(2)
+
+        if encoder_mask is not None:
+            attn_scores = attn_scores.masked_fill(~encoder_mask, -1e9)
+            
         attn_weights = F.softmax(attn_scores, dim=1)
 
         context = torch.bmm(attn_weights.unsqueeze(1), encoder_outputs)

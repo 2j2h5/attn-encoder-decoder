@@ -4,6 +4,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import matplotlib.pyplot as plt
+from nltk.translate.bleu_score import corpus_bleu, SmoothingFunction
+from torch.utils.tensorboard import SummaryWriter
 
 from data import *
 from model import Encoder, Decoder
@@ -31,19 +33,22 @@ tgt_WrdCnt = loaded_data[f"{tgt_lang}_WrdCnt"]
 print(src_WrdCnt, tgt_WrdCnt)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-max_target_length = 50
+max_target_length = 40
 hidden_size = 256
 num_layers = 1
-learning_rate = 0.0001
-teacher_forcing_ratio = 0.5
+learning_rate = 0.0005
+teacher_forcing_ratio = 0.7
 num_iters = 1000
 print_every = 10
+num_samples = 10
+clip_value = 5.0
 
 SOS_token = tgt_W2I["<SOS>"]
 EOS_token = tgt_W2I["<EOS>"]
 UNK_token = tgt_W2I["<UNK>"]
 
 loss_list = []
+writer = SummaryWriter(log_dir="./runs/gradient_visualization/encdec")
 
 encoder = Encoder(src_WrdCnt, hidden_size, num_layers=num_layers, device=device).to(device)
 decoder = Decoder(hidden_size, tgt_WrdCnt, num_layers=num_layers, device=device).to(device)
@@ -87,6 +92,9 @@ def train(input_tensor, target_tensor, use_teacher_forcing_flag=True):
 
     loss.backward()
     
+    torch.nn.utils.clip_grad_norm_(encoder.parameters(), clip_value)
+    torch.nn.utils.clip_grad_norm_(decoder.parameters(), clip_value)
+    
     encoder_optimizer.step()
     decoder_optimizer.step()
 
@@ -120,6 +128,26 @@ def evaluate(input_tensor):
 
         return decoded_words
 
+def evaluate_bleu(pairs, num_samples=100):
+    references = []
+    hypotheses = []
+
+    smoothing_fn = SmoothingFunction().method4
+
+    for _ in range(num_samples):
+        pair = random.choice(pairs)
+        input_tensor = tensorFromSentence(pair[0], src_W2I, device=device)
+        output_words = evaluate(input_tensor)
+
+        if output_words and output_words[-1] == "<EOS>":
+            output_words = output_words[:-1]
+
+        references.append([pair[1].split()])
+        hypotheses.append(output_words)
+
+    bleu_score = corpus_bleu(references, hypotheses, smoothing_function=smoothing_fn)
+    return bleu_score
+
 if __name__ == "__main__":
     print("Training...")
     for iter in range(num_iters):
@@ -131,14 +159,30 @@ if __name__ == "__main__":
         loss_list.append(loss)
 
         if iter % print_every == 0:
-            print(f"Iteration {iter}, Loss: {loss:.4f}")
+            for name, param in encoder.named_parameters():
+                if param.grad is not None:
+                    writer.add_histogram(f"encoder_gradients/{name}", param.grad.cpu().data.numpy(), iter)
+                    writer.add_scalar(f"encoder_gradients_norm/{name}", param.grad.data.norm(2).item(), iter)
 
-    sample_pair = random.choice(valid_pairs)
-    input_tensor = tensorFromSentence(sample_pair[0], src_W2I, device=device)
-    output_words = evaluate(input_tensor)
-    print(f"Input(en): {sample_pair[0]}")
-    print("Output(de):", " ".join(output_words))
-    print(f"Target(de): {sample_pair[1]}")
+            for name, param in decoder.named_parameters():
+                if param.grad is not None:
+                    writer.add_histogram(f"decoder_gradients/{name}", param.grad.cpu().data.numpy(), iter)
+                    writer.add_scalar(f"decoder_gradients_norm/{name}", param.grad.data.norm(2).item(), iter)
+            print(f"Iteration {iter}, Loss: {loss:.4f}")
+        
+    writer.close()
+
+    for _ in range(num_samples):
+        sample_pair = random.choice(valid_pairs)
+        input_tensor = tensorFromSentence(sample_pair[0], src_W2I, device=device)
+        output_words = evaluate(input_tensor)
+        print("============================")
+        print(f"Input(en): {sample_pair[0]}")
+        print("Output(de):", " ".join(output_words))
+        print(f"Target(de): {sample_pair[1]}")
+
+    bleu = evaluate_bleu(valid_pairs, num_samples=100)
+    print(f"BLEU score (corpus): {bleu * 100:.2f}")
 
     x = torch.arange(num_iters)
     plt.figure(figsize=(10, 6))

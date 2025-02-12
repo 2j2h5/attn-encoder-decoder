@@ -39,11 +39,15 @@ def get_sentences(dataset, src_lang, tgt_lang):
 
     return src_sentences, tgt_sentences
 
-def get_sentence_pairs(src_sentences, tgt_sentences):
+def get_sentence_pairs(src_sentences, tgt_sentences, reverse=True):
     pairs = []
-    for src, tgt in zip(src_sentences, tgt_sentences):
-        reversed_src = ' '.join(reversed(src.split()))
-        pairs.append([reversed_src, tgt])
+    if reverse:
+        for src, tgt in zip(src_sentences, tgt_sentences):
+            reversed_src = ' '.join(reversed(src.split()))
+            pairs.append([reversed_src, tgt])
+    else:
+        for src, tgt in zip(src_sentences, tgt_sentences):
+            pairs.append([src, tgt])
     
     return pairs
 
@@ -71,6 +75,7 @@ if __name__ == "__main__":
     dataset = "multi30k"
     src_lang = "en"
     tgt_lang = "de"
+    reverse_flag = True
 
     train_dataset, valid_dataset, test_dataset = load_data(dataset)
 
@@ -80,9 +85,9 @@ if __name__ == "__main__":
     test_src, test_tgt = get_sentences(test_dataset, src_lang, tgt_lang)
 
     print("Reversing input sentences...")
-    train_pairs = get_sentence_pairs(train_src, train_tgt)
-    valid_pairs = get_sentence_pairs(valid_src, valid_tgt)
-    test_pairs = get_sentence_pairs(test_src, test_tgt)
+    train_pairs = get_sentence_pairs(train_src, train_tgt, reverse=reverse_flag)
+    valid_pairs = get_sentence_pairs(valid_src, valid_tgt, reverse=reverse_flag)
+    test_pairs = get_sentence_pairs(test_src, test_tgt, reverse=reverse_flag)
 
     print("Vectorizing...")
     src_W2I, src_I2W, src_W2C, src_WrdCnt = vectorize(train_src + valid_src + test_src)
