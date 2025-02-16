@@ -40,7 +40,7 @@ num_layers = 1
 learning_rate = 0.0005
 teacher_forcing_flag = True
 teacher_forcing_ratio = 0.7
-num_iters = 1000
+num_iters = 10000
 print_every = 10
 num_samples = 10
 clip_value = 5.0
@@ -66,8 +66,10 @@ def prepare_batch(pairs, batch_size):
     batch_pairs = random.sample(pairs, batch_size)
     input_sequences = []
     target_sequences = []
+    original_pairs = []
 
     for pair in batch_pairs:
+        original_pairs.append(pair)
         input_seq = indexesFromSentence(pair[0], src_W2I)
         input_seq.append(EOS_token)
         target_seq = indexesFromSentence(pair[1], tgt_W2I)
@@ -86,7 +88,7 @@ def prepare_batch(pairs, batch_size):
     input_lengths = [len(seq) for seq in input_sequences]
     target_lengths = [len(seq) for seq in target_sequences]
 
-    return input_tensor, input_lengths, target_tensor, target_lengths
+    return input_tensor, input_lengths, target_tensor, target_lengths, original_pairs
 
 def train(input_tensor, input_lengths, target_tensor, target_lengths, use_teacher_forcing_flag=True):
     encoder_hidden = encoder.initHidden(batch_size)
@@ -173,7 +175,7 @@ def evaluate_bleu(pairs, num_samples=100):
 
     for _ in range(num_samples):
         pair = random.choice(pairs)
-        input_tensor, input_lengths, _, _ = prepare_batch([pair], 1)
+        input_tensor, input_lengths, _, _, _ = prepare_batch([pair], 1)
         output_words = evaluate(input_tensor, input_lengths)[0]
 
         if output_words and output_words[-1] == "<EOS>":
@@ -188,7 +190,7 @@ def evaluate_bleu(pairs, num_samples=100):
 if __name__ == "__main__":
     print("Training...")
     for iter in range(num_iters):
-        input_tensor, input_lengths, target_tensor, target_lengths = prepare_batch(train_pairs, batch_size)
+        input_tensor, input_lengths, target_tensor, target_lengths, _ = prepare_batch(train_pairs, batch_size)
 
         loss = train(input_tensor, input_lengths, target_tensor, target_lengths, use_teacher_forcing_flag=teacher_forcing_flag)    
         loss_list.append(loss)
@@ -208,17 +210,26 @@ if __name__ == "__main__":
     writer.close()
 
     sample_batch = prepare_batch(valid_pairs, batch_size)
-    decoded_sentences = evaluate(sample_batch[0], sample_batch[1])
+    input_tensor, input_lengths, target_tensor, target_lengths, original_pairs = sample_batch
+    decoded_sentences = evaluate(input_tensor, input_lengths)
     print("Sample Evaluation on Valid Batch:")
     for i, sent in enumerate(decoded_sentences[:5]):
-        print(f"Input(en): {valid_pairs[i][0]}")
+        print(f"Input(en): {original_pairs[i][0]}")
         print("Output(de):", " ".join(sent))
-        print(f"Target(de): {valid_pairs[i][1]}")
+        print(f"Target(de): {original_pairs[i][1]}")
         print("-----")
 
     print("Evaluating BLEU on valid set...")
     bleu = evaluate_bleu(valid_pairs, num_samples=100)
     print(f"BLEU score (corpus): {bleu * 100:.2f}")
+
+    torch.save({
+        'encoder_state_dict': encoder.state_dict(),
+        'attn_decoder_state_dict': attn_decoder.state_dict(),
+        'encoder_optimizer_state_dict': encoder_optimizer.state_dict(),
+        'decoder_optimizer_state_dict': decoder_optimizer.state_dict(),
+        'loss_list': loss_list,
+    }, 'final_model_checkpoint.pth')
 
     x = torch.arange(num_iters)
     plt.figure(figsize=(10, 6))
