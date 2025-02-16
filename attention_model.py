@@ -19,9 +19,9 @@ class Encoder(nn.Module):
 
         return outputs, hidden
     
-    def initHidden(self):
-        return (torch.zeros(self.num_layers, 1, self.hidden_size, device=self.device),
-                torch.zeros(self.num_layers, 1, self.hidden_size, device=self.device))
+    def initHidden(self, batch_size=1):
+        return (torch.zeros(self.num_layers, batch_size, self.hidden_size, device=self.device),
+                torch.zeros(self.num_layers, batch_size, self.hidden_size, device=self.device))
     
 class AttnDecoder(nn.Module):
     def __init__(self, hidden_size, output_size, num_layers, device, dropout_p=0.1, max_length=50):

@@ -52,10 +52,10 @@ def get_sentence_pairs(src_sentences, tgt_sentences, reverse=True):
     return pairs
 
 def vectorize(dataset):
-    word2index = {"<SOS>": 0, "<EOS>": 1, "<UNK>": 2}
-    index2word = {0: "<SOS>", 1: "<EOS>", 2: "<UNK>"}
+    word2index = {"<SOS>": 0, "<EOS>": 1, "<UNK>": 2, "<PAD>": 3}
+    index2word = {0: "<SOS>", 1: "<EOS>", 2: "<UNK>", 3: "<PAD>"}
     word2count = {}
-    cnt = 3
+    cnt = 4
 
     for sentence in dataset:
         for word in sentence.split():

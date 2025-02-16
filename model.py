@@ -13,16 +13,15 @@ class Encoder(nn.Module):
         self.embedding = nn.Embedding(input_size, hidden_size)
         self.lstm = nn.LSTM(hidden_size, hidden_size, num_layers=num_layers)
 
-    def forward(self, x, h):
-        embedded = self.embedding(x).view(1, 1, -1)
-        y = embedded
-        y, h = self.lstm(y, h)
+    def forward(self, x, hidden):
+        embedded = self.embedding(x)
+        output, hidden = self.lstm(embedded, hidden)
 
-        return y, h
+        return output, hidden
     
-    def initHidden(self):
-        return (torch.zeros(self.num_layers, 1, self.hidden_size, device=self.device),
-                torch.zeros(self.num_layers, 1, self.hidden_size, device=self.device))
+    def initHidden(self, batch_size=1):
+        return (torch.zeros(self.num_layers, batch_size, self.hidden_size, device=self.device),
+                torch.zeros(self.num_layers, batch_size, self.hidden_size, device=self.device))
     
 class Decoder(nn.Module):
     def __init__(self, hidden_size, output_size, num_layers, device):
@@ -36,13 +35,10 @@ class Decoder(nn.Module):
         self.out = nn.Linear(hidden_size, output_size)
         self.softmax = nn.LogSoftmax(dim=1)
 
-    def forward(self, x, h):
-        y = self.embedding(x).view(1, 1, -1)
-        y = F.relu(y)
-        y, h = self.lstm(y, h)
-        y = self.softmax(self.out(y[0]))
+    def forward(self, x, hidden):
+        embedded = self.embedding(x)
+        output = F.relu(embedded)
+        output, hidden = self.lstm(output, hidden)
+        output = self.softmax(self.out(output[0]))
 
-        return y, h
-    
-    def initHidden(self):
-        return torch.zeros(self.num_layers, 1, self.hidden_size, device=self.device)
+        return output, hidden
