@@ -31,7 +31,7 @@ PAD_token = tgt_W2I["<PAD>"]
 encoder = Encoder(src_vocab_size, hidden_size, num_layers, device).to(device)
 attn_decoder = AttnDecoder(hidden_size, tgt_vocab_size, num_layers, device, dropout_p=dropout_p, max_length=max_length).to(device)
 
-checkpoint = torch.load("final_model_checkpoint.pth", map_location=device)
+checkpoint = torch.load("translate_model.pth", map_location=device)
 encoder.load_state_dict(checkpoint['encoder_state_dict'])
 attn_decoder.load_state_dict(checkpoint['attn_decoder_state_dict'])
 
