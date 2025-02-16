@@ -229,7 +229,7 @@ if __name__ == "__main__":
         'encoder_optimizer_state_dict': encoder_optimizer.state_dict(),
         'decoder_optimizer_state_dict': decoder_optimizer.state_dict(),
         'loss_list': loss_list,
-    }, 'final_model_checkpoint.pth')
+    }, 'checkpoint.pth')
 
     x = torch.arange(num_iters)
     plt.figure(figsize=(10, 6))

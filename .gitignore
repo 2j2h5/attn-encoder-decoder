@@ -5,6 +5,9 @@ multi30k-en-de.pkl
 encoder_state_dict.pkl
 decoder_state_dict.pkl
 
+#checkpoint
+checkpoint.pth
+
 # Tensorboard dir
 runs
 
