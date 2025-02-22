@@ -45,7 +45,7 @@ print_every = 10
 num_samples = 10
 clip_value = 5.0
 dropout_p = 0.1
-batch_size = 80
+batch_size = 160
 
 SOS_token = tgt_W2I["<SOS>"]
 EOS_token = tgt_W2I["<EOS>"]

@@ -1,5 +1,6 @@
 import torch
 import pickle
+import random
 from attention_model import Encoder, AttnDecoder
 from util import *
 
@@ -10,6 +11,9 @@ tgt_lang = "de"
 with open(pkl_file, "rb") as f:
     loaded_data = pickle.load(f)
 
+train_pairs = loaded_data["train_pairs"]
+valid_pairs = loaded_data["valid_pairs"]
+test_pairs = loaded_data["test_pairs"]
 src_W2I = loaded_data[f"{src_lang}_W2I"]
 src_I2W = loaded_data[f"{src_lang}_I2W"]
 tgt_W2I = loaded_data[f"{tgt_lang}_W2I"]
@@ -22,6 +26,7 @@ max_length = 40
 hidden_size = 1000
 num_layers = 1
 dropout_p = 0.1
+translate_model = "translate_model(1000-160).pth"
 
 SOS_token = tgt_W2I["<SOS>"]
 EOS_token = tgt_W2I["<EOS>"]
@@ -31,7 +36,7 @@ PAD_token = tgt_W2I["<PAD>"]
 encoder = Encoder(src_vocab_size, hidden_size, num_layers, device).to(device)
 attn_decoder = AttnDecoder(hidden_size, tgt_vocab_size, num_layers, device, dropout_p=dropout_p, max_length=max_length).to(device)
 
-checkpoint = torch.load("translate_model.pth", map_location=device)
+checkpoint = torch.load(translate_model, map_location=device)
 encoder.load_state_dict(checkpoint['encoder_state_dict'])
 attn_decoder.load_state_dict(checkpoint['attn_decoder_state_dict'])
 
@@ -68,7 +73,19 @@ def translate(sentence):
     return " ".join(decoded_words)
 
 if __name__ == "__main__":
-    sentence = input("Enter an English sentence to translate: ")
-    translation = translate(sentence)
-    print("German translation:")
-    print(translation)
+    print(f"Number of pair of Sentences: {len(train_pairs)}")
+    print(f"Vocab size(en): {src_vocab_size}, Vocab size(de): {tgt_vocab_size}")
+    print("Examples of pair of sentences")
+    print(f"Number of pair of Sentences: {len(train_pairs)}")
+    print(f"Vocab size(en): {src_vocab_size}, Vocab size(de): {tgt_vocab_size}")
+    print("Examples of pair of sentences")
+    print("-----")
+    samples = random.sample(valid_pairs, 10)
+    for i in range(10):
+        words = samples[i][0].split()
+        reversed_words = words[::-1]
+        reversed_sentence = ' '.join(reversed_words)
+        print(f"Input(en): {reversed_sentence}")
+        print(f"Translate(de): {translate(samples[i][0])}")
+        print(f"Correct(de): {samples[i][1]}")
+        print("-----")
