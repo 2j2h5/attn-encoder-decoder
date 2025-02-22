@@ -35,11 +35,11 @@ print(f"Vocab Size({tgt_lang}): {tgt_WrdCnt}")
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 max_target_length = 40
-hidden_size = 128
+hidden_size = 1000
 num_layers = 1
 learning_rate = 0.0005
 teacher_forcing_ratio = 0.7
-num_iters = 1000
+num_iters = 10000
 print_every = 10
 num_samples = 10
 clip_value = 5.0
