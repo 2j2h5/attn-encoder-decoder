@@ -1,4 +1,4 @@
-# Encdoer-Decoder Model
+# Encdoer-Decoder Model with Attention
 This repository implements both the LSTM Encoder-Deocder Model and the LSTM Encoder-Decoder Model with attention. The models are trained using the [Multi30k en-de dataset](https://huggingface.co/datasets/bentrevett/multi30k). Their impolementations are based on the following papers: the LSTM Encoder-Decoder Model is based on this [paper](https://arxiv.org/abs/1409.3215), and the LSTM Encoder-Decoder model with attention is based on this [paper](https://arxiv.org/abs/1409.0473).
 
 # Requirements
